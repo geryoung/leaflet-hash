@@ -5,11 +5,11 @@
             (doc_mode === undefined || doc_mode > 7);
     })();
     
-    L.Hash = function(map) {
+    L.Hash = function(map, options) {
         this.onHashChange = L.Util.bind(this.onHashChange, this);
     
         if (map) {
-            this.init(map);
+            this.init(map, options);
         }
     };
     
@@ -22,21 +22,20 @@
                 hash = hash.substr(1);
             }
             var args = hash.split("/");
-            if (args.length == 3) {
+            if (args.length >= 3) {
                 var zoom = parseInt(args[0], 10),
                     lat = parseFloat(args[1]),
-                    lon = parseFloat(args[2]);
-                if (isNaN(zoom) || isNaN(lat) || isNaN(lon)) {
-                    return false;
-                } else {
+                    lon = parseFloat(args[2]),
+                    extra_elts = args.slice(3);
+                if (!isNaN(zoom) && !isNaN(lat) && !isNaN(lon)) {
                     return {
                         center: new L.LatLng(lat, lon),
-                        zoom: zoom
+                        zoom: zoom,
+                        extra_elts: extra_elts
                     };
                 }
-            } else {
-                return false;
             }
+            return false;
         },
     
         formatHash: function(map) {
@@ -44,15 +43,24 @@
                 zoom = map.getZoom(),
                 precision = Math.max(0, Math.ceil(Math.log(zoom) / Math.LN2));
             
-            return "#" + [zoom,
+            var elts = [
+                zoom,
                 center.lat.toFixed(precision),
                 center.lng.toFixed(precision)
-            ].join("/");
+            ]
+            elts = elts.concat(this.options.extraHashSetter());
+            return "#" + elts.join("/");
         },
     
-        init: function(map) {
+        options: {
+            extraHashSetter: function (){return [];},
+            extraHashHandler: function (extra_elts){}
+        },
+
+        init: function(map, options) {
             this.map = map;
-            
+            this.options = L.Util.extend({}, this.options, options);
+
             this.map.on("moveend", this.onMapMove, this);
             
             // reset the hash
@@ -100,6 +108,8 @@
                 
                 this.map.setView(parsed.center, parsed.zoom);
                 
+                this.options.extraHashHandler(parsed.extra_elts)
+
                 this.movingMap = false;
             } else {
                 // console.warn("parse error; resetting:", this.map.getCenter(), this.map.getZoom());
